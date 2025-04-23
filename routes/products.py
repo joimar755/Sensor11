@@ -43,17 +43,15 @@ def getnew(
     db.commit()
     db.refresh(db_item)
     return {"data": db_item}
+    
 
-@VH.get("/api/motion/data/estado")
-def get_estado_actual(db: Session = Depends(get_db), current_user: int = Depends(oauth.get_current_user)):
-    estado = db.query(bombillo).filter(bombillo.user_id == current_user.id).order_by(bombillo.id.desc()).first()
-    if not estado:
-        return {"led1": 0, "led2": 0, "led3": 0}
-    return {
-        "led1": estado.led1,
-        "led2": estado.led2,
-        "led3": estado.led3,
-    }
+@VH.get("http://192.168.1.2:8000/api/motion/data/bombillos/status")
+def get_estado_leds(
+    db: Session = Depends(get_db),
+    current_user: int = Depends(oauth.get_current_user)
+):
+    item = db.query(bombillo).filter(bombillo.user_id == current_user.id).order_by(bombillo.id.desc()).first()
+    return {"led1": item.led1, "led2": item.led2, "led3": item.led3,"bloqeos":item.bloqueos}
 
 
 @VH.post("/api/motion/data/create")
@@ -92,21 +90,22 @@ def index(id: int, db: Session = Depends(get_db)):
 @VH.get("/relacion", response_model=List[m_pro.vh])
 def index(db: Session = Depends(get_db)):
     query = (
-        db.query(bombillo, Datos, Users)
-        .join(Datos, bombillo.user_id == bombillo.id)
-        
+        db.query(Vehiculos, Category, Model_Auto)
+        .join(Category, Vehiculos.category_id == Category.id)
+        .join(Model_Auto, Vehiculos.modelo_id == Model_Auto.id)
         .all()
     )
 
     # Iterar y mostrar los resultados
     resultados = [
         {
-            "id": bombillo.id,
-            "name_product":bombillo.led1,
-            "category": Datos.valor,
-        
+            "id": vehiculo.id,
+            "name_product": vehiculo.name_product,
+            "category": categoria.name,
+            "price":vehiculo.price,
+            "modelo": modelo.modelo,
         }
-        for bombillo, Datos in query
+        for vehiculo, categoria, modelo in query
     ]
 
     # Serializar la respuesta usando jsonable_encoder y devolver como JSONResponse
