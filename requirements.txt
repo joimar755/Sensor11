@@ -1,0 +1,15 @@
+fastapi
+SQLAlchemy
+mysql-connector-python
+passlib
+uvicorn
+python-jose
+pydantic
+python-multipart
+bcrypt
+alembic
+psycopg2-binary
+python-dotenv
+PyMySQL==1.1.0
+
+
