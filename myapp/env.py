@@ -75,8 +75,7 @@ def run_migrations_online() -> None:
         target_metadata=target_metadata,
         compare_type=True,
         # Añadir aquí las tablas que quieres ignorar
-        include_object=lambda object, name, type_, reflected, compare_to:
-            not (type_ == "table" and name in ["Autos_models", "Detalle_Compra", "Detalle_Venta"]),
+        
         )
 
         with context.begin_transaction():

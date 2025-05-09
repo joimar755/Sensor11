@@ -23,10 +23,10 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 
-@VH.get("/api/motion/data/bombillos", response_model=List[DatosSensor.DatosOut])
+@VH.get("/api/motion/data/bombillos")                                                                                                                                                                
 def getproduct(db: Session = Depends(get_db)):
-    product = db.query(Datos).all()
-    return product
+    product = db.query(bombillo).all()
+    return {'data': product}
 
 
 @VH.post("/api/motion/data/bombillos")
@@ -45,7 +45,7 @@ def getnew(
     return {"data": db_item}
     
 
-@VH.get("http://192.168.1.2:8000/api/motion/data/bombillos/status")
+@VH.get("/api/motion/data/bombillos/status")
 def get_estado_leds(
     db: Session = Depends(get_db),
     current_user: int = Depends(oauth.get_current_user)
@@ -57,17 +57,34 @@ def get_estado_leds(
 @VH.post("/api/motion/data/create")
 def getsensor(
     vhs_datos: DatosSensor.DatosCreate,
-    db: Session = Depends(get_db), current_user: int = Depends(oauth.get_current_user)
+    db: Session = Depends(get_db),
+    current_user: int = Depends(oauth.get_current_user)
 ):
+    # Buscar el último bombillo asociado al usuario
+    bombillo_obj = (
+        db.query(bombillo)
+        .filter(bombillo.user_id == current_user.id)
+        .order_by(bombillo.id.desc())
+        .first()
+    )
 
-    #existe = db.query(bombillo).filter(bombillo.name_product == vhs.name_product).first()
-    
-    print(current_user.id)     
-    db_item = Datos(user_id=current_user.id,**vhs_datos.model_dump())
+    if not bombillo_obj:
+        raise HTTPException(status_code=404, detail="No hay bombillos registrados para este usuario")
+
+    # Crear el dato asociado a ese bombillo
+    db_item = Datos(
+        user_id=current_user.id,
+        bombillo_id=bombillo_obj.id,
+        valor=vhs_datos.valor  # Solo se espera 'valor' en el JSON
+    )
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
     return {"data": db_item}
+
+
+
+    
 
 @VH.get("/api/motion/estado")
 def estado_actual(db: Session = Depends(get_db)):
@@ -139,7 +156,7 @@ def index(id: int, db: Session = Depends(get_db),current_user: int = Depends(oau
 
 @VH.put("/products/{id}", response_model=m_pro.vhBase)
 def index(id: int, update_vhs: m_pro.vhBase ,current_user: int = Depends(get_current_user), db: Session = Depends(get_db)):
-    vh_query = db.query(Vehiculos).filter(Vehiculos.id == id)
+    vh_query = db.query(bombillo).filter(bombillo.id == id)
     post_vh = vh_query.first()
     if not vh_query.first():
         raise HTTPException(status_code=404, detail="Product not found")

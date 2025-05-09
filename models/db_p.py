@@ -17,10 +17,11 @@ class bombillo(Base):
     
     
 class Datos(Base):
-    __tablename__ = "Datos"
+    __tablename__ = "datos"
     id = Column(Integer, primary_key=True)
     valor = Column(String(255), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    bombillo_id = Column(Integer, ForeignKey("bombillo.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
     
 
@@ -31,6 +32,10 @@ class Users(Base):
     password = Column(String(255), nullable=False)
     phone_number = Column(String(12))
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+
+    
+
+
 
     
 

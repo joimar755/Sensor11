@@ -1,13 +1,11 @@
-#include <Wire.h>
 #include <Arduino.h>
-#define BLYNK_PRINT Serial
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <ArduinoJson.h>  // Asegúrate de tener la biblioteca ArduinoJson instalada en tu entorno de desarrollo
-
-const char *ssid = "FLIA_ACUNA";
-const char *password = "03251979";
+#include <ArduinoJson.h>
 #include <LiquidCrystal_PCF8574.h>
+
+const char *ssid = "Joimar";
+const char *password = "1002212701";
 
 int contadorBloqueos = 0;
 
@@ -15,15 +13,17 @@ int LED1 = 26;
 int LED2 = 23;
 int LED3 = 4;
 int SENSOR = 25;
-// Definir pines de Botones
+
 const int BTN1 = 18;
 const int BTN2 = 19;
 const int BTN3 = 27;
+
 bool statusE1 = false, statusE2 = false, statusE3 = false;
-// Inicializar LCD en la dirección I2C (0x27 o 0x3F)
+
 LiquidCrystal_PCF8574 lcd(0x3F);
 
-// Función para actualizar el LCD
+unsigned long ultimoChequeo = 0;
+
 void actualizarLCD() {
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -35,8 +35,8 @@ void actualizarLCD() {
   lcd.setCursor(0, 1);
   lcd.print("LD3: ");
   lcd.print(statusE3 ? "ON " : "OFF");
-  lcd.print("Cnt: "); lcd.print(contadorBloqueos);
-
+  lcd.print("Cnt: ");
+  lcd.print(contadorBloqueos);
 }
 
 void setup() {
@@ -46,152 +46,173 @@ void setup() {
     delay(250);
     Serial.print(".");
   }
-  // Inicializar LCD con comunicación I2C
-  Wire.begin(21, 22);  // SDA = 21, SCL = 22
-  lcd.begin(16, 2);
-  lcd.setBacklight(255);  // Encender luz de fondo
 
-  Serial.println("");
-  Serial.println("Conexión WiFi establecida");
-  Serial.print("Dirección IP: ");
+  Wire.begin(21, 22);
+  lcd.begin(16, 2);
+  lcd.setBacklight(255);
+
+  Serial.println("WiFi conectado");
   Serial.println(WiFi.localIP());
-  Serial.println(WiFi.status());
-  // Configurar pines de LEDs como salida
+
   pinMode(LED1, OUTPUT);
   pinMode(LED2, OUTPUT);
   pinMode(LED3, OUTPUT);
-
-  // Configurar pines de botones como entrada con pull-up interno
   pinMode(BTN1, INPUT);
   pinMode(BTN2, INPUT);
   pinMode(BTN3, INPUT);
   pinMode(SENSOR, INPUT);
 
-  
-
-  // Apagar LEDs al inicio
   digitalWrite(LED1, LOW);
   digitalWrite(LED2, LOW);
   digitalWrite(LED3, LOW);
 
-
-  actualizarLCD();  // Mostrar estado inicial en LCD
+  actualizarLCD();
 }
 
-// Función para leer botones con antirrebote
 bool leerBoton(int pin) {
   if (digitalRead(pin) == LOW) {
-    delay(50);  // Evita lecturas erróneas por rebote
+    delay(50);
     if (digitalRead(pin) == LOW) {
-      while (digitalRead(pin) == LOW)
-        ;  // Espera a que se suelte
+      while (digitalRead(pin) == LOW);
       return true;
     }
   }
   return false;
 }
+
 bool detectarBloqueo() {
-    if (digitalRead(SENSOR) == HIGH) {  // Si el sensor detecta un objeto
-        delay(100);  // Pequeño delay para evitar rebotes
-        if (digitalRead(SENSOR) == HIGH) {  
-            while (digitalRead(SENSOR) == HIGH);  // Espera a que se libere
-            return true;
-        }
+  if (digitalRead(SENSOR) == HIGH) {
+    delay(100);
+    if (digitalRead(SENSOR) == HIGH) {
+      while (digitalRead(SENSOR) == HIGH);
+      return true;
     }
-    return false;
+  }
+  return false;
 }
 
 void sendDato() {
-  HTTPClient http;  // Declarar una instancia de HTTPClient
-  //////////////////////////////////////////////////////////////////////
-
-  http.begin("http://192.168.1.2:8001/api/motion/data/create");  //Specify the URL
+  HTTPClient http;
+  http.begin("http://192.168.1.11:8001/api/motion/data/create");
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NDY0ODM0NjJ9.AHia56zmcUka7t8v6_W8qmzSrblD7Yt3eVGxgWuL624");
+  http.addHeader("Authorization", "Bearer TU_TOKEN_AQUI");
 
   int httpResponseCode = http.POST("{\"valor\":\"1\"}");
-  
-
   if (httpResponseCode > 0) {
-    String payload = http.getString();
-    Serial.println("Respuesta POST con datos JSON: " + payload);
+    Serial.println("Respuesta POST: " + http.getString());
   } else {
-    Serial.println("Error en la solicitud POST con datos JSON");
+    Serial.println("Error en POST");
   }
-
-  http.end();  // Esperar 5 segundos antes de la siguiente iteración
+  http.end();
 }
+
 void sendDatoBombillos(int led1, int led2, int led3, int bloqueos) {
-  HTTPClient http;  // Declarar una instancia de HTTPClient
-  //////////////////////////////////////////////////////////////////////
+  HTTPClient http;
   StaticJsonDocument<200> jsonDoc;
   jsonDoc["led1"] = led1;
   jsonDoc["led2"] = led2;
   jsonDoc["led3"] = led3;
   jsonDoc["bloqueos"] = bloqueos;
 
-  
   String jsonString;
   serializeJson(jsonDoc, jsonString);
-  http.begin("http://192.168.1.2:8001/api/motion/data/bombillos");  //Specify the URL
+  http.begin("http://192.168.1.11:8001/api/motion/data/bombillos");
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NDY0ODM0NjJ9.AHia56zmcUka7t8v6_W8qmzSrblD7Yt3eVGxgWuL624");
+  http.addHeader("Authorization", "Bearer ");
 
   int httpResponseCode = http.POST(jsonString);
-
-
   if (httpResponseCode > 0) {
-    String payload = http.getString();
-    Serial.println("✅ POST exitoso: " + payload);
+    Serial.println("✅ POST exitoso: " + http.getString());
   } else {
-    Serial.println("❌ Error en POST");
-    Serial.println("Código HTTP: " + String(httpResponseCode));
-    Serial.println("Descripción: " + http.errorToString(httpResponseCode));  // ← Este es clave
+    Serial.println("❌ Error en POST: " + String(httpResponseCode));
   }
-
-
-  http.end();  // Esperar 5 segundos antes de la siguiente iteración
-  http.setTimeout(2000);  // 10 segundos
+  http.end();
 }
 
+// 🔁 CONSULTAR ESTADO DESDE FASTAPI (control desde React)
+void consultarEstadoDesdeAPI() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  HTTPClient http;
+  http.begin("http://192.168.1.11:8001/api/motion/data/estado");  // Ruta GET
+  http.addHeader("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NDgwNjA0OTl9.IXCRj9_psWq0Z257HtHYMujXefSa2cEJRK942sspCIg");
+
+  int httpCode = http.GET();
+  if (httpCode > 0) {
+    String respuesta = http.getString();
+    Serial.println("🌐 Estado recibido: " + respuesta);
+
+    StaticJsonDocument<200> doc;
+    DeserializationError error = deserializeJson(doc, respuesta);
+    if (!error) {
+      statusE1 = doc["led1"];
+      statusE2 = doc["led2"];
+      statusE3 = doc["led3"];
+
+      digitalWrite(LED1, statusE1 ? HIGH : LOW);
+      digitalWrite(LED2, statusE2 ? HIGH : LOW);
+      digitalWrite(LED3, statusE3 ? HIGH : LOW);
+
+      actualizarLCD();
+    } else {
+      Serial.println("❗ Error al parsear JSON");
+    }
+  } else {
+    Serial.println("❌ Error GET: " + http.errorToString(httpCode));
+  }
+
+  http.end();
+}
 
 void loop() {
   if (leerBoton(BTN1)) {
     statusE1 = !statusE1;
-    digitalWrite(LED1, statusE1 == true ? 1 : 0);
-    sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);  // <-- aquí
-    delay(100);
+    digitalWrite(LED1, statusE1);
+    sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
     actualizarLCD();
   }
 
   if (leerBoton(BTN2)) {
     statusE2 = !statusE2;
-    digitalWrite(LED2, statusE2 == true ? 1 : 0);
-    delay(200);
-    sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);  // <-- aquí
+    digitalWrite(LED2, statusE2);
+    sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
     actualizarLCD();
   }
 
   if (leerBoton(BTN3)) {
     statusE3 = !statusE3;
-    digitalWrite(LED3, statusE3 == true ? 1 : 0);
-    sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);  // <-- aquí
-    delay(300);
+    digitalWrite(LED3, statusE3);
+    sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
     actualizarLCD();
   }
-  if (detectarBloqueo()) {  
-        contadorBloqueos++;  // Incrementa el contador
-        Serial.print("Detección #: ");
-        Serial.println(contadorBloqueos);
-        sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
-        actualizarLCD();  // Actualizar LCD con nuevo conteo
-  }
 
+  if (detectarBloqueo()) {
+    contadorBloqueos++;
+    Serial.print("Detección #: ");
+    Serial.println(contadorBloqueos);
+    sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
+    actualizarLCD();
+  }
 
   if (digitalRead(SENSOR) == LOW) {
     sendDato();
     actualizarLCD();
   }
-  
-  
+
+  // 🔄 Consultar cada 5 segundos el estado desde la API (React)
+  if (millis() - ultimoChequeo > 5000) {
+    consultarEstadoDesdeAPI();
+
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (millis() - ultimoChequeo > 5000) {
+      ultimoChequeo = millis();
+      sendDato();
+      sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
+         
+    }
+  } else {
+    Serial.println("WiFi no conectado");
+  }  
 }
