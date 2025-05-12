@@ -50,8 +50,22 @@ def get_estado_leds(
     db: Session = Depends(get_db),
     current_user: int = Depends(oauth.get_current_user)
 ):
-    item = db.query(bombillo).filter(bombillo.user_id == current_user.id).order_by(bombillo.id.desc()).first()
-    return {"led1": item.led1, "led2": item.led2, "led3": item.led3,"bloqeos":item.bloqueos}
+    ultimo = (
+        db.query(bombillo)
+        .filter(bombillo.user_id == current_user.id)
+        .order_by(bombillo.id.desc())
+        .first()
+    )
+
+    if not ultimo:
+        raise HTTPException(status_code=404, detail="No hay bombillos registrados para este usuario")
+
+    return {
+        "led1": ultimo.led1,
+        "led2": ultimo.led2,
+        "led3": ultimo.led3
+    }
+
 
 
 @VH.post("/api/motion/data/create")

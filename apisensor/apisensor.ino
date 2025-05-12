@@ -4,8 +4,8 @@
 #include <ArduinoJson.h>
 #include <LiquidCrystal_PCF8574.h>
 
-const char *ssid = "Joimar";
-const char *password = "1002212701";
+const char *ssid = "FLIA_ACUNA";
+const char *password = "03251979";
 
 int contadorBloqueos = 0;
 
@@ -22,7 +22,15 @@ bool statusE1 = false, statusE2 = false, statusE3 = false;
 
 LiquidCrystal_PCF8574 lcd(0x3F);
 
-unsigned long ultimoChequeo = 0;
+
+unsigned long previousMillis = 0;  // Para calcular el tiempo
+const long interval = 300;  // 
+bool controlRemoto = true;  
+
+unsigned long previousMillisConsulta = 0;
+unsigned long previousMillisEnvio = 0;
+const long intervaloConsulta = 3000;  // cada 3 segundos
+const long intervaloEnvio = 1000;   
 
 void actualizarLCD() {
   lcd.clear();
@@ -65,6 +73,7 @@ void setup() {
   digitalWrite(LED1, LOW);
   digitalWrite(LED2, LOW);
   digitalWrite(LED3, LOW);
+    
 
   actualizarLCD();
 }
@@ -93,9 +102,9 @@ bool detectarBloqueo() {
 
 void sendDato() {
   HTTPClient http;
-  http.begin("http://192.168.1.11:8001/api/motion/data/create");
+  http.begin("http://192.168.1.16:8001/api/motion/data/create");
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", "Bearer TU_TOKEN_AQUI");
+  http.addHeader("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NDgwNjA0OTl9.IXCRj9_psWq0Z257HtHYMujXefSa2cEJRK942sspCIg");
 
   int httpResponseCode = http.POST("{\"valor\":\"1\"}");
   if (httpResponseCode > 0) {
@@ -116,9 +125,9 @@ void sendDatoBombillos(int led1, int led2, int led3, int bloqueos) {
 
   String jsonString;
   serializeJson(jsonDoc, jsonString);
-  http.begin("http://192.168.1.11:8001/api/motion/data/bombillos");
+  http.begin("http://192.168.1.16:8001/api/motion/data/bombillos");
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", "Bearer ");
+  http.addHeader("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NDgwNjA0OTl9.IXCRj9_psWq0Z257HtHYMujXefSa2cEJRK942sspCIg");
 
   int httpResponseCode = http.POST(jsonString);
   if (httpResponseCode > 0) {
@@ -131,59 +140,84 @@ void sendDatoBombillos(int led1, int led2, int led3, int bloqueos) {
 
 // 🔁 CONSULTAR ESTADO DESDE FASTAPI (control desde React)
 void consultarEstadoDesdeAPI() {
-  if (WiFi.status() != WL_CONNECTED) return;
+   if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin("http://192.168.1.16:8001/api/motion/data/bombillos/status");
+    http.addHeader("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NDgwNjA0OTl9.IXCRj9_psWq0Z257HtHYMujXefSa2cEJRK942sspCIg");
 
-  HTTPClient http;
-  http.begin("http://192.168.1.11:8001/api/motion/data/estado");  // Ruta GET
-  http.addHeader("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NDgwNjA0OTl9.IXCRj9_psWq0Z257HtHYMujXefSa2cEJRK942sspCIg");
+    int httpCode = http.GET();
 
-  int httpCode = http.GET();
-  if (httpCode > 0) {
-    String respuesta = http.getString();
-    Serial.println("🌐 Estado recibido: " + respuesta);
+    if (httpCode == 200) {
+      String payload = http.getString();
 
-    StaticJsonDocument<200> doc;
-    DeserializationError error = deserializeJson(doc, respuesta);
-    if (!error) {
-      statusE1 = doc["led1"];
-      statusE2 = doc["led2"];
-      statusE3 = doc["led3"];
+      StaticJsonDocument<200> doc;
+      DeserializationError error = deserializeJson(doc, payload);
 
-      digitalWrite(LED1, statusE1 ? HIGH : LOW);
-      digitalWrite(LED2, statusE2 ? HIGH : LOW);
-      digitalWrite(LED3, statusE3 ? HIGH : LOW);
+      if (!error) {
+        int estadoLed1 = doc["led1"];
+        int estadoLed2 = doc["led2"];
+        int estadoLed3 = doc["led3"];
 
-      actualizarLCD();
+        digitalWrite(LED1, estadoLed1);
+        digitalWrite(LED2, estadoLed2);
+        digitalWrite(LED3, estadoLed3);
+
+        Serial.print("LED1: "); Serial.println(estadoLed1);
+        Serial.print("LED2: "); Serial.println(estadoLed2);
+        Serial.print("LED3: "); Serial.println(estadoLed3);
+
+
+        Serial.println("✅ Estado actualizado desde servidor");
+      } else {
+            Serial.println("❌ Error al parsear JSON: " + String(error.f_str()));
+      }
     } else {
-      Serial.println("❗ Error al parsear JSON");
+      Serial.print("❌ Error HTTP: ");
+      Serial.println(httpCode);
     }
-  } else {
-    Serial.println("❌ Error GET: " + http.errorToString(httpCode));
-  }
 
-  http.end();
+    http.end();
+  }
 }
 
 void loop() {
-  if (leerBoton(BTN1)) {
-    statusE1 = !statusE1;
-    digitalWrite(LED1, statusE1);
-    sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
-    actualizarLCD();
+  unsigned long currentMillis = millis();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    // Solo si el modo es remoto, consulta la API y actualiza los LEDs
+    if (controlRemoto && currentMillis - previousMillis >= interval) {
+      previousMillis = currentMillis;
+      consultarEstadoDesdeAPI();
+      detectarBloqueo(); 
+      sendDato();                 
+      actualizarLCD();
+    }
+  } else {
+    Serial.println("WiFi no conectado");
   }
 
-  if (leerBoton(BTN2)) {
-    statusE2 = !statusE2;
-    digitalWrite(LED2, statusE2);
-    sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
-    actualizarLCD();
-  }
+  // Solo si el modo es manual, usa botones físicos
+  if (!controlRemoto) {
+    if (leerBoton(BTN1)) {
+      statusE1 = !statusE1;
+      digitalWrite(LED1, statusE1);
+      sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
+      actualizarLCD();
+    }
 
-  if (leerBoton(BTN3)) {
-    statusE3 = !statusE3;
-    digitalWrite(LED3, statusE3);
-    sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
-    actualizarLCD();
+    if (leerBoton(BTN2)) {
+      statusE2 = !statusE2;
+      digitalWrite(LED2, statusE2);
+      sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
+      actualizarLCD();
+    }
+
+    if (leerBoton(BTN3)) {
+      statusE3 = !statusE3;
+      digitalWrite(LED3, statusE3);
+      sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
+      actualizarLCD();
+    }
   }
 
   if (detectarBloqueo()) {
@@ -193,26 +227,5 @@ void loop() {
     sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
     actualizarLCD();
   }
-
-  if (digitalRead(SENSOR) == LOW) {
-    sendDato();
-    actualizarLCD();
-  }
-
-  // 🔄 Consultar cada 5 segundos el estado desde la API (React)
-  if (millis() - ultimoChequeo > 5000) {
-    consultarEstadoDesdeAPI();
-
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
-    if (millis() - ultimoChequeo > 5000) {
-      ultimoChequeo = millis();
-      sendDato();
-      sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
-         
-    }
-  } else {
-    Serial.println("WiFi no conectado");
-  }  
 }
+
