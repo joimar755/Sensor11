@@ -4,8 +4,18 @@
 #include <ArduinoJson.h>
 #include <LiquidCrystal_PCF8574.h>
 
-const char *ssid = "FLIA_ACUNA";
-const char *password = "03251979";
+#define BLYNK_TEMPLATE_ID "TMPL2Q89pw2pA"
+#define BLYNK_TEMPLATE_NAME "Proyecto de Sensor"
+#define BLYNK_AUTH_TOKEN "6FwrYJtlTyTVtbGJ5AooBi9LCD8WO90e"
+
+#define BLYNK_PRINT Serial
+#include <BlynkSimpleEsp32.h>
+#define ledPin 2
+
+char auth[] = BLYNK_AUTH_TOKEN;
+
+ char ssid[] = "Oral";
+ char password[] = "alluleju";
 
 int contadorBloqueos = 0;
 
@@ -30,7 +40,7 @@ bool controlRemoto = true;
 unsigned long previousMillisConsulta = 0;
 unsigned long previousMillisEnvio = 0;
 const long intervaloConsulta = 3000;  // cada 3 segundos
-const long intervaloEnvio = 1000;   
+const long intervaloEnvio = 5000;   
 
 void actualizarLCD() {
   lcd.clear();
@@ -49,6 +59,9 @@ void actualizarLCD() {
 
 void setup() {
   Serial.begin(9600);
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW);
+  Blynk.begin(auth, ssid, password);
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(250);
@@ -89,7 +102,7 @@ bool leerBoton(int pin) {
   return false;
 }
 
-bool detectarBloqueo() {
+/* bool detectarBloqueo() {
   if (digitalRead(SENSOR) == HIGH) {
     delay(100);
     if (digitalRead(SENSOR) == HIGH) {
@@ -99,12 +112,30 @@ bool detectarBloqueo() {
   }
   return false;
 }
+ */
+
+bool detectarBloqueo() {
+  static bool bloqueoPrevio = false;
+  bool actual = digitalRead(SENSOR);
+
+  if (actual == HIGH && !bloqueoPrevio) {
+    bloqueoPrevio = true;
+    return true;
+  }
+
+  if (actual == LOW) {
+    bloqueoPrevio = false;
+  }
+
+  return false;
+}
+
 
 void sendDato() {
   HTTPClient http;
-  http.begin("http://192.168.1.16:8001/api/motion/data/create");
+  http.begin("http://192.168.1.11:8000/api/motion/data/create");
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NDgwNjA0OTl9.IXCRj9_psWq0Z257HtHYMujXefSa2cEJRK942sspCIg");
+  http.addHeader("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NDg2NTI3MTF9.LQdQW8yE8JE6_MCJz5Y8AU9JngM7M48dCNb4U7OpicY");
 
   int httpResponseCode = http.POST("{\"valor\":\"1\"}");
   if (httpResponseCode > 0) {
@@ -125,9 +156,9 @@ void sendDatoBombillos(int led1, int led2, int led3, int bloqueos) {
 
   String jsonString;
   serializeJson(jsonDoc, jsonString);
-  http.begin("http://192.168.1.16:8001/api/motion/data/bombillos");
+  http.begin("http://192.168.1.11:8000/api/motion/data/bombillos");
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NDgwNjA0OTl9.IXCRj9_psWq0Z257HtHYMujXefSa2cEJRK942sspCIg");
+  http.addHeader("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NDg2NTI3MTF9.LQdQW8yE8JE6_MCJz5Y8AU9JngM7M48dCNb4U7OpicY");
 
   int httpResponseCode = http.POST(jsonString);
   if (httpResponseCode > 0) {
@@ -142,8 +173,8 @@ void sendDatoBombillos(int led1, int led2, int led3, int bloqueos) {
 void consultarEstadoDesdeAPI() {
    if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
-    http.begin("http://192.168.1.16:8001/api/motion/data/bombillos/status");
-    http.addHeader("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NDgwNjA0OTl9.IXCRj9_psWq0Z257HtHYMujXefSa2cEJRK942sspCIg");
+    http.begin("http://192.168.1.11:8000/api/motion/data/bombillos/status");
+    http.addHeader("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3NDg2NTI3MTF9.LQdQW8yE8JE6_MCJz5Y8AU9JngM7M48dCNb4U7OpicY");
 
     int httpCode = http.GET();
 
@@ -181,23 +212,37 @@ void consultarEstadoDesdeAPI() {
 }
 
 void loop() {
-  unsigned long currentMillis = millis();
-
+ unsigned long currentMillis = millis();
+  
   if (WiFi.status() == WL_CONNECTED) {
-    // Solo si el modo es remoto, consulta la API y actualiza los LEDs
-    if (controlRemoto && currentMillis - previousMillis >= interval) {
-      previousMillis = currentMillis;
-      consultarEstadoDesdeAPI();
-      detectarBloqueo(); 
-      sendDato();                 
-      actualizarLCD();
+    
+    if (controlRemoto) {
+      // Consultar API cada 3 segundos
+      if (currentMillis - previousMillisConsulta >= intervaloConsulta) {
+        previousMillisConsulta = currentMillis;
+        consultarEstadoDesdeAPI();
+        actualizarLCD();
+      }
+
+      // Enviar dato del sensor cada 1 segundo
+      /* if (currentMillis - previousMillisEnvio >= intervaloEnvio) {
+        previousMillisEnvio = currentMillis;
+        sendDato();
+      } */
+
+      // Actualizar LCD cada 300 ms
+      if (currentMillis - previousMillis >= interval) {
+        previousMillis = currentMillis;
+        actualizarLCD();
+      }
     }
   } else {
     Serial.println("WiFi no conectado");
   }
 
+
   // Solo si el modo es manual, usa botones físicos
-  if (!controlRemoto) {
+  /* if (!controlRemoto) {
     if (leerBoton(BTN1)) {
       statusE1 = !statusE1;
       digitalWrite(LED1, statusE1);
@@ -218,14 +263,20 @@ void loop() {
       sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
       actualizarLCD();
     }
-  }
+  } */
 
-  if (detectarBloqueo()) {
+   if (detectarBloqueo()) {
     contadorBloqueos++;
     Serial.print("Detección #: ");
     Serial.println(contadorBloqueos);
+    sendDato();
     sendDatoBombillos(statusE1, statusE2, statusE3, contadorBloqueos);
     actualizarLCD();
-  }
+  } 
+  Blynk.run();
+}
+BLYNK_WRITE(V0){
+  int pinValue = param.asInt();
+  digitalWrite(LED1, pinValue);
 }
 
