@@ -7,18 +7,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("SQLALCHEMY_DATABASE_URL_SENSOR")
-#SQLALCHEMY_DATABASE_URL = "mysql+mysqlconnector://root:@localhost:3306/Vehiculos"
+DATABASE_URL_1 = os.getenv("DATABASE_URL_1")
+SQLALCHEMY_DATABASE_URL = "mysql+pymysql://ucyfzmysg55hlcut:5KdrGWiVUrTvb9uCJUbU@bgwito1c36qmhwkekquc-mysql.services.clever-cloud.com:3306/bgwito1c36qmhwkekquc"
 engine = create_engine(
-    DATABASE_URL
-    #SQLALCHEMY_DATABASE_URL
+    #DATABASE_URL_1
+    SQLALCHEMY_DATABASE_URL
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 #Base.metadata.create_all(bind=engine, checkfirst=True)
 
 def get_db():
-    db = SessionLocal()
+    db = SessionLocal() 
     try:
         yield db
     finally:
