@@ -12,10 +12,29 @@
 #include <BlynkSimpleEsp32.h>
 #define ledPin 2
 
+#include <Keypad.h>
+// define numero de filas
+const uint8_t ROWS = 4;
+// define numero de columnas
+const uint8_t COLS = 3;
+
+char keys[ROWS][COLS] = {
+  { '1', '2', '3'},
+  { '4', '5', '6'},
+  { '7', '8', '9'},
+  { '*', '0', '#'}
+};
+
+uint8_t colPins[COLS] = { 14,12,13,4 };
+// pines correspondientes a las columnas
+uint8_t rowPins[ROWS] = { 15,2,19 };
+// crea objeto con los prametros creados previamente
+Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+
 char auth[] = BLYNK_AUTH_TOKEN;
 
- char ssid[] = "Oral";
- char password[] = "alluleju";
+ char ssid[] = "Casa 61";
+ char password[] = "Anaya2025*";
 
 int contadorBloqueos = 0;
 
@@ -212,6 +231,12 @@ void consultarEstadoDesdeAPI() {
 }
 
 void loop() {
+   char key = keypad.getKey();
+  // comprueba que se haya presionado una tecla
+  if (key) {
+    // envia a monitor serial la tecla presionada
+    Serial.println(key);
+    
  unsigned long currentMillis = millis();
   
   if (WiFi.status() == WL_CONNECTED) {
@@ -274,6 +299,7 @@ void loop() {
     actualizarLCD();
   } 
   Blynk.run();
+ 
 }
 BLYNK_WRITE(V0){
   int pinValue = param.asInt();
